@@ -1,5 +1,6 @@
--- Draggable Animation Freeze UI (Client-Side)
--- Drag the bar to move the whole panel
+-- Draggable Animation Freeze UI (FULLY DRAGGABLE)
+-- Drag ANYWHERE on the panel to move it
+-- Text perfectly centered
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -15,7 +16,7 @@ local animateScript = character:WaitForChild("Animate", 5)
 if not animateScript then warn("Animate script not found!") return end
 
 -------------------------------------------------
--- UI
+-- UI (FULLY DRAGGABLE)
 -------------------------------------------------
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "AnimFreezeUI"
@@ -28,32 +29,29 @@ frame.Position = UDim2.new(0, 10, 0, 10)
 frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 frame.BorderSizePixel = 2
 frame.BorderColor3 = Color3.fromRGB(100, 100, 255)
+frame.Active = true  -- Makes entire frame draggable
 frame.Parent = screenGui
 
 local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(0, 8)
 corner.Parent = frame
 
--- Drag bar (top part)
-local dragBar = Instance.new("Frame")
-dragBar.Size = UDim2.new(1, 0, 0, 20)
-dragBar.BackgroundTransparency = 1
-dragBar.Parent = frame
+-- Title text (PERFECTLY CENTERED)
+local textLabel = Instance.new("TextLabel")
+textLabel.Size = UDim2.new(0, 120, 1, 0)
+textLabel.Position = UDim2.new(0, 10, 0, 0)
+textLabel.BackgroundTransparency = 1
+textLabel.Text = "Freeze Animation"
+textLabel.TextColor3 = Color3.new(1,1,1)
+textLabel.Font = Enum.Font.GothamBold
+textLabel.TextSize = 14
+textLabel.TextScaled = true
+textLabel.Parent = frame
 
-local dragLabel = Instance.new("TextLabel")
-dragLabel.Size = UDim2.new(1, -70, 1, 0)
-dragLabel.BackgroundTransparency = 1
-dragLabel.Text = "Freeze Animation"
-dragLabel.TextColor3 = Color3.new(1,1,1)
-dragLabel.Font = Enum.Font.GothamBold
-dragLabel.TextSize = 14
-dragLabel.TextXAlignment = Enum.TextXAlignment.Left
-dragLabel.Parent = dragBar
-
--- Toggle button
+-- Toggle button (right side)
 local toggleBtn = Instance.new("TextButton")
 toggleBtn.Size = UDim2.new(0, 50, 0, 30)
-toggleBtn.Position = UDim2.new(1, -55, 0, 10)
+toggleBtn.Position = UDim2.new(1, -55, 0.5, -15)
 toggleBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
 toggleBtn.Text = "OFF"
 toggleBtn.TextColor3 = Color3.new(1,1,1)
@@ -66,18 +64,17 @@ btnCorner.CornerRadius = UDim.new(0, 6)
 btnCorner.Parent = toggleBtn
 
 -------------------------------------------------
--- Dragging logic
+-- FULL FRAME DRAGGING (Click ANYWHERE to drag)
 -------------------------------------------------
 local dragging = false
 local dragInput, dragStart, startPos
 
 local function updateInput(input)
 	local delta = input.Position - dragStart
-	frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
-	                           startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+	frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
 end
 
-dragBar.InputBegan:Connect(function(input)
+frame.InputBegan:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 then
 		dragging = true
 		dragStart = input.Position
@@ -91,20 +88,20 @@ dragBar.InputBegan:Connect(function(input)
 	end
 end)
 
-dragBar.InputChanged:Connect(function(input)
+frame.InputChanged:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseMovement then
 		dragInput = input
 	end
 end)
 
 UserInputService.InputChanged:Connect(function(input)
-	if dragging and (input == dragInput) then
+	if input.UserInputType == Enum.UserInputType.MouseMovement and dragging and (input == dragInput) then
 		updateInput(input)
 	end
 end)
 
 -------------------------------------------------
--- Freeze logic
+-- Freeze logic (unchanged)
 -------------------------------------------------
 local frozenTransforms = {}
 local motors = {}
@@ -161,4 +158,4 @@ end)
 
 setState(false)
 
-print("Draggable Animation Freeze UI ready! Drag the top bar to move.")
+print("FULLY DRAGGABLE Animation Freeze UI loaded! Click ANYWHERE to drag.")
