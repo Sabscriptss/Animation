@@ -1,67 +1,126 @@
--- UNIVERSAL IDLE FREEZE – WORKS IN EVERY GAME (2025)
--- Run ONCE after spawning. You move, pose stays frozen for all.
+-- Animation Freeze + Toggle UI (Client-Side)
+-- Works with any executor
 
-local Players       = game:GetService("Players")
-local RunService    = game:GetService("RunService")
-local player        = Players.LocalPlayer
-local character     = player.Character or player.CharacterAdded:Wait()
-local humanoid      = character:WaitForChild("Humanoid")
-local root          = character:WaitForChild("HumanoidRootPart")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 
--- Wait for full character load (R15/R6, custom rigs)
-repeat task.wait() until #character:GetDescendants() >= 50
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local animateScript = character:WaitForChild("Animate", 5)
 
--- Stop all animations instantly
-for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
-    track:Stop(0)
+if not animateScript then
+	warn("Animate script not found!")
+	return
 end
 
--- Force idle state and let pose settle
-humanoid:ChangeState(Enum.HumanoidStateType.Running)
-task.wait(0.3)
+-- ==== UI ====
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "AnimFreezeUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
 
--- Capture current Motor6D transforms (this is your idle pose)
-local frozenPose = {}
-for _, motor in ipairs(character:GetDescendants()) do
-    if motor:IsA("Motor6D") then
-        frozenPose[motor] = { C0 = motor.C0, C1 = motor.C1 }
-    end
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 180, 0, 50)
+frame.Position = UDim2.new(0, 10, 0, 10)
+frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+frame.BorderSizePixel = 2
+frame.BorderColor3 = Color3.fromRGB(100, 100, 255)
+frame.Parent = screenGui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 8)
+corner.Parent = frame
+
+local textLabel = Instance.new("TextLabel")
+textLabel.Size = UDim2.new(1, -70, 1, 0)
+textLabel.Position = UDim2.new(0, 5, 0, 0)
+textLabel.BackgroundTransparency = 1
+textLabel.Text = "Freeze Animation"
+textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+textLabel.Font = Enum.Font.GothamBold
+textLabel.TextSize = 14
+textLabel.TextXAlignment = Enum.TextXAlignment.Left
+textLabel.Parent = frame
+
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Size = UDim2.new(0, 50, 0, 30)
+toggleBtn.Position = UDim2.new(1, -55, 0, 10)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+toggleBtn.Text = "OFF"
+toggleBtn.TextColor3 = Color3.new(1,1,1)
+toggleBtn.Font = Enum.Font.GothamBold
+toggleBtn.TextSize = 14
+toggleBtn.Parent = frame
+
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(0, 6)
+btnCorner.Parent = toggleBtn
+
+-- ==== FREEZE LOGIC ====
+local frozenTransforms = {}
+local motors = {}
+local connection
+
+local function collectMotors()
+	table.clear(motors)
+	for _, m in ipairs(character:GetDescendants()) do
+		if m:IsA("Motor6D") and m.Part0 and m.Part1 then
+			table.insert(motors, m)
+		end
+	end
 end
 
--- Disable Animator to prevent game from re-animating
-local animator = humanoid:FindFirstChildOfClass("Animator")
-if animator then
-    animator.Enabled = false
-    -- Re-disable if game tries to turn it back on
-    animator:GetPropertyChangedSignal("Enabled"):Connect(function()
-        task.spawn(function()
-            task.wait()
-            animator.Enabled = false
-        end)
-    end)
+local function freezePose()
+	collectMotors()
+	table.clear(frozenTransforms)
+	for _, motor in ipairs(motors) do
+		frozenTransforms[motor] = motor.Transform
+	end
+
+	animateScript.Disabled = true
+
+	if connection then connection:Disconnect() end
+	connection = RunService.RenderStepped:Connect(function()
+		if not character.Parent then return end
+		for motor, tr in pairs(frozenTransforms) do
+			if motor.Parent then
+				motor.Transform = tr
+			end
+		end
+	end)
 end
 
--- Slow update loop (~15 FPS) to bypass anti-cheat rate limits
-local lastUpdate = 0
-local conn
-conn = RunService.Heartbeat:Connect(function(time)
-    if not character.Parent or not root.Parent then
-        conn:Disconnect()
-        return
-    end
-    if time - lastUpdate < 0.066 then return end  -- ~15 FPS
-    lastUpdate = time
+local function unfreezePose()
+	animateScript.Disabled = false
+	if connection then
+		connection:Disconnect()
+		connection = nil
+	end
+end
 
-    for motor, data in pairs(frozenPose) do
-        if motor.Parent then
-            motor.C0 = data.C0
-            motor.C1 = data.C1
-        end
-    end
+-- ==== TOGGLE ====
+local isFrozen = false
+
+local function setState(freeze)
+	isFrozen = freeze
+	if freeze then
+		freezePose()
+		toggleBtn.Text = "ON"
+		toggleBtn.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+	else
+		unfreezePose()
+		toggleBtn.Text = "OFF"
+		toggleBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+	end
+end
+
+toggleBtn.MouseButton1Click:Connect(function()
+	setState(not isFrozen)
 end)
 
--- Ensure movement works (some games nerf it)
-humanoid.WalkSpeed = 16
-humanoid.JumpPower = 50
+-- Initial state
+setState(false)
 
-print("UNIVERSAL IDLE FREEZE ACTIVE: Pose locked – move freely, seen by all!")
+print("Animation Freeze UI loaded! Click the button to toggle.")
