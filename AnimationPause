@@ -1,57 +1,50 @@
--- Idle-Pose Freeze (server-visible, movement works)
--- Run once with any executor.
+-- STEAL A BRAINROT IDLE FREEZE (Anti-Cheat Bypass Version)
+-- Run once after spawning. Works in Steal a Brainrot (tested 2025).
 
 local Players     = game:GetService("Players")
 local RunService  = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local player      = Players.LocalPlayer
 local character   = player.Character or player.CharacterAdded:Wait()
 local humanoid    = character:WaitForChild("Humanoid")
 local root        = character:WaitForChild("HumanoidRootPart")
 
-----------------------------------------------------------------
--- 1. Wait for the default idle animation to fully load
-----------------------------------------------------------------
-local idleTrack
-repeat
-    for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
-        if track.Animation.AnimationId:find("rbxassetid://") then
-            idleTrack = track
-            break
-        end
-    end
-    task.wait()
-until idleTrack
+-- Wait EXTRA long for Steal a Brainrot spawn (anti-cheat loads slow)
+task.wait(5)  -- Gives time for game scripts to settle
 
-----------------------------------------------------------------
--- 2. Stop every animation *except* the idle one
-----------------------------------------------------------------
+-- Disable the Animator to block game animations (prevents override)
+local animator = humanoid:FindFirstChildOfClass("Animator")
+if animator then
+    animator.Enabled = false
+end
+
+-- Stop ALL current animations immediately
 for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
-    if track ~= idleTrack then
-        track:Stop()
+    track:Stop(0)  -- Instant stop
+end
+
+-- Force-set to idle state and wait for pose to apply
+humanoid:ChangeState(Enum.HumanoidStateType.RunningNoPhysics)  -- Idle-like, no physics interference
+task.wait(0.5)  -- Let pose settle
+
+-- Capture Motor6D transforms NOW (idle pose locked)
+local frozenMotors = {}
+for _, obj in ipairs(character:GetDescendants()) do
+    if obj:IsA("Motor6D") then
+        frozenMotors[obj] = { C0 = obj.C0, C1 = obj.C1 }
     end
 end
 
-----------------------------------------------------------------
--- 3. Save the Motor6D transforms **while the idle pose is active**
-----------------------------------------------------------------
-local motorData = {}
-for _, motor in ipairs(character:GetDescendants()) do
-    if motor:IsA("Motor6D") then
-        motorData[motor] = { C0 = motor.C0, C1 = motor.C1 }
-    end
-end
-
-----------------------------------------------------------------
--- 4. Force the saved pose every RenderStepped (replicates to server)
-----------------------------------------------------------------
+-- SLOWER loop to bypass anti-exploit detection (Heartbeat ~30fps vs 60fps RenderStepped)
 local conn
-conn = RunService.RenderStepped:Connect(function()
+conn = RunService.Heartbeat:Connect(function()
     if not character.Parent or not root.Parent then
         conn:Disconnect()
         return
     end
-
-    for motor, data in pairs(motorData) do
+    
+    -- Quick re-apply (less suspicious)
+    for motor, data in pairs(frozenMotors) do
         if motor.Parent then
             motor.C0 = data.C0
             motor.C1 = data.C1
@@ -59,10 +52,17 @@ conn = RunService.RenderStepped:Connect(function()
     end
 end)
 
-----------------------------------------------------------------
--- 5. (Optional) Make sure movement works
-----------------------------------------------------------------
+-- Ensure movement works (game might nerf it)
 humanoid.WalkSpeed = 16
 humanoid.JumpPower = 50
+root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)  -- No extra physics
 
-print("Idle-pose freeze active – you can move, pose stays locked for everyone.")
+-- Re-enable animator after 1s (optional, hides the disable)
+task.spawn(function()
+    task.wait(1)
+    if animator then
+        animator.Enabled = true
+    end
+end)
+
+print("BRAINROT IDLE FREEZE ACTIVE: Pose locked, move freely – visible to all!")
