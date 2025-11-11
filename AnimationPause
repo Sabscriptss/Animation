@@ -1,16 +1,9 @@
--- Open Source Animation Pauser created by Grok for people to use
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
-
-local character = player.Character or player.CharacterAdded:Wait()
-local humanoid = character:WaitForChild("Humanoid")
-local animateScript = character:WaitForChild("Animate", 5)
-if not animateScript then warn("Animate script not found!") return end
 
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "AnimFreezeUI"
@@ -23,7 +16,7 @@ frame.Position = UDim2.new(0, 10, 0, 10)
 frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 frame.BorderSizePixel = 2
 frame.BorderColor3 = Color3.fromRGB(100, 100, 255)
-frame.Active = true  -- Makes entire frame draggable
+frame.Active = true
 frame.Parent = screenGui
 
 local corner = Instance.new("UICorner")
@@ -92,10 +85,23 @@ end)
 local frozenTransforms = {}
 local motors = {}
 local connection
+local currentAnimateScript
+local isFrozen = false
 
-local function collectMotors()
+local function getCharacter()
+	local char = player.Character
+	if char then
+		local anim = char:FindFirstChild("Animate")
+		if anim then
+			return char, anim
+		end
+	end
+	return nil, nil
+end
+
+local function collectMotors(char)
 	table.clear(motors)
-	for _, v in character:GetDescendants() do
+	for _, v in char:GetDescendants() do
 		if v:IsA("Motor6D") and v.Part0 and v.Part1 then
 			table.insert(motors, v)
 		end
@@ -103,16 +109,26 @@ local function collectMotors()
 end
 
 local function freezePose()
-	collectMotors()
+	local char, animateScript = getCharacter()
+	if not char or not animateScript then return end
+	
+	currentAnimateScript = animateScript
+	collectMotors(char)
 	table.clear(frozenTransforms)
 	for _, m in motors do
 		frozenTransforms[m] = m.Transform
 	end
+	
 	animateScript.Disabled = true
 
 	if connection then connection:Disconnect() end
 	connection = RunService.RenderStepped:Connect(function()
-		if not character.Parent then return end
+		local stillValidChar, stillValidAnimate = getCharacter()
+		if not stillValidChar or stillValidAnimate ~= currentAnimateScript then 
+			setState(false)
+			return 
+		end
+		
 		for m, tr in frozenTransforms do
 			if m.Parent then m.Transform = tr end
 		end
@@ -120,11 +136,18 @@ local function freezePose()
 end
 
 local function unfreezePose()
-	animateScript.Disabled = false
-	if connection then connection:Disconnect() connection = nil end
+	if currentAnimateScript then
+		currentAnimateScript.Disabled = false
+		currentAnimateScript = nil
+	end
+	if connection then 
+		connection:Disconnect() 
+		connection = nil 
+	end
+	table.clear(frozenTransforms)
+	table.clear(motors)
 end
 
-local isFrozen = false
 local function setState(on)
 	isFrozen = on
 	if on then
@@ -140,6 +163,12 @@ end
 
 toggleBtn.MouseButton1Click:Connect(function()
 	setState(not isFrozen)
+end)
+
+player.CharacterAdded:Connect(function()
+	if isFrozen then
+		setState(false)
+	end
 end)
 
 setState(false)
