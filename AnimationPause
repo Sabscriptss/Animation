@@ -1,50 +1,69 @@
--- STEAL A BRAINROT IDLE FREEZE (Anti-Cheat Bypass Version)
--- Run once after spawning. Works in Steal a Brainrot (tested 2025).
+-- STEAL A BRAINROT ANIMATION FREEZE BYPASS (2025 Adonis-Compatible)
+-- Spoofs detection, locks idle pose, movement works. Run once.
 
-local Players     = game:GetService("Players")
-local RunService  = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local player      = Players.LocalPlayer
-local character   = player.Character or player.CharacterAdded:Wait()
-local humanoid    = character:WaitForChild("Humanoid")
-local root        = character:WaitForChild("HumanoidRootPart")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local root = character:WaitForChild("HumanoidRootPart")
 
--- Wait EXTRA long for Steal a Brainrot spawn (anti-cheat loads slow)
-task.wait(5)  -- Gives time for game scripts to settle
+-- Wait for full spawn in Steal a Brainrot (anti-cheat settles)
+task.wait(10)
 
--- Disable the Animator to block game animations (prevents override)
+-- Spoof Humanoid metatable to hide changes (bypasses Adonis/CrystalAC checks)
+local oldHumanoid = humanoid
+local mt = getrawmetatable(game)
+setreadonly(mt, false)
+local oldIndex = mt.__index
+mt.__index = function(self, key)
+    if self == oldHumanoid and (key == "WalkSpeed" or key == "JumpPower") then
+        return 16, 50  -- Report normal to anti-cheat
+    end
+    return oldIndex(self, key)
+end
+setreadonly(mt, true)
+
+-- Disable Animator permanently (via spoof) to block game overrides
 local animator = humanoid:FindFirstChildOfClass("Animator")
 if animator then
     animator.Enabled = false
+    -- Hook to prevent re-enable
+    animator.Changed:Connect(function(prop)
+        if prop == "Enabled" then
+            animator.Enabled = false
+        end
+    end)
 end
 
--- Stop ALL current animations immediately
+-- Stop all tracks instantly
 for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
-    track:Stop(0)  -- Instant stop
+    track:Stop(0)
 end
 
--- Force-set to idle state and wait for pose to apply
-humanoid:ChangeState(Enum.HumanoidStateType.RunningNoPhysics)  -- Idle-like, no physics interference
-task.wait(0.5)  -- Let pose settle
+-- Set to idle state and wait for natural pose
+humanoid:ChangeState(Enum.HumanoidStateType.Running)
+task.wait(1)  -- Let game idle apply
 
--- Capture Motor6D transforms NOW (idle pose locked)
-local frozenMotors = {}
-for _, obj in ipairs(character:GetDescendants()) do
-    if obj:IsA("Motor6D") then
-        frozenMotors[obj] = { C0 = obj.C0, C1 = obj.C1 }
+-- Capture idle Motor6Ds
+local frozenData = {}
+for _, motor in ipairs(character:GetDescendants()) do
+    if motor:IsA("Motor6D") then
+        frozenData[motor] = {C0 = motor.C0, C1 = motor.C1}
     end
 end
 
--- SLOWER loop to bypass anti-exploit detection (Heartbeat ~30fps vs 60fps RenderStepped)
-local conn
-conn = RunService.Heartbeat:Connect(function()
+-- Slow Stepped loop (10Hz) for anti-cheat evasion
+local conn, lastUpdate = nil, 0
+conn = RunService.Stepped:Connect(function(time)
     if not character.Parent or not root.Parent then
         conn:Disconnect()
         return
     end
-    
-    -- Quick re-apply (less suspicious)
-    for motor, data in pairs(frozenMotors) do
+    if time - lastUpdate < 0.1 then return end  -- Throttle to ~10Hz
+    lastUpdate = time
+
+    for motor, data in pairs(frozenData) do
         if motor.Parent then
             motor.C0 = data.C0
             motor.C1 = data.C1
@@ -52,17 +71,8 @@ conn = RunService.Heartbeat:Connect(function()
     end
 end)
 
--- Ensure movement works (game might nerf it)
+-- Force normal movement (spoofed above)
 humanoid.WalkSpeed = 16
 humanoid.JumpPower = 50
-root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)  -- No extra physics
 
--- Re-enable animator after 1s (optional, hides the disable)
-task.spawn(function()
-    task.wait(1)
-    if animator then
-        animator.Enabled = true
-    end
-end)
-
-print("BRAINROT IDLE FREEZE ACTIVE: Pose locked, move freely – visible to all!")
+print("BRAINROT FREEZE BYPASSED: Idle pose locked – move around, visible to all!")
